@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<title>模拟</title>
+	<link rel="stylesheet" href="css/bootstrap.min.css">
+	<link href="css/bootstrap-switch.min.css" rel="stylesheet">
+	<style>
+html, body {
+	background: #000
+}
+.box {
+	position: absolute;
+	/*background: #9f6;*/
+}
+.boxA {
+	top: 0px;
+	left: 0px;
+	transition: left 0.3s ease;
+}
+.boxB {
+	top: 0px;
+	right: 0px;
+	transition: right 0.3s ease;
+}
+.dot {
+	border-radius: 50%;
+	background: #69f;
+	float: left;
+}
+.scene {
+	/*background: #ccc;*/
+	width: 800px;
+	height: 200px;
+	margin: 100px auto;
+	position: relative;
+}
+.panel {
+	position: absolute;
+	width: 200px;
+	height: 75px;
+	bottom: -100px;
+	left: 0px;
+	background-color: #eee;
+}
+.mask {
+	width: 100%;
+	height: 100%;
+	background-color: #999;
+	opacity: 0;
+	position: absolute;
+	left: 0px;
+	top: 0px;
+	z-index: 100;
+	cursor: pointer;
+	transition: opacity 0.8s ease;
+}
+.box .mask-solid {
+	opacity: 0.9;
+}
+.btnContact {
+	position: absolute;
+	right: 5px;
+	top: -50px;
+}
+.btnContact:before {
+	content: '接触';
+}
+.contact .boxA {
+	left: 200px;
+}
+.contact .boxB {
+	right: 200px;
+}
+.contact .btnContact:before {
+	content: '隔离';
+}
+.bootstrap-switch {
+	margin-top: -80px;
+	width: 80px;
+}
+	</style>
+</head>
+<body>
+	<div class="scene">
+		<button class="btn btn-success btnContact"></button>
+		<input type="checkbox" name='my-checkbox'>
+		<div class="box boxA">
+			<div class="panel">
+				<table class="table table-bordered">
+			      <tbody>
+			        <tr>
+			        	<th scope="row">总数</th>
+			        	<td>400</td>
+			        </tr>
+			        <tr>
+			    		<th scope="row">红色</th>
+			         	<td class="redNum">60</td>
+			        </tr>
+			      </tbody>
+			    </table>
+			</div>
+		</div>
+		<div class="box boxB">
+			<div class="panel">
+				<table class="table table-bordered">
+			      <tbody>
+			        <tr>
+			        	<th scope="row">总数</th>
+			        	<td>400</td>
+			        </tr>
+			        <tr>
+			    		<th scope="row">红色</th>
+			         	<td class="redNum">140</td>
+			        </tr>
+			      </tbody>
+			    </table>
+			</div>
+		</div>		
+	</div>
+
+	<script src="js/jquery.min.js"></script>
+	<script src="js/bootstrap.min.js"></script>
+	<script src="js/bootstrap-switch.min.js"></script>
+
+	<script>
+var bd = $("body"), elm = {
+	btnContact: $('.btnContact')
+}
+var cfg = {
+	dotR: 5,
+	time: 1000
+}
+
+function Dot (opt) {
+	var opt = opt || {};
+
+	var elm = this.elm = $('<div>').addClass("dot");
+	var r = opt.radius || 5, w = 2*r, h = 2*r;
+	var state = opt.state;
+	elm.css({
+		width: w + 'px',
+		height: h + 'px'
+	});
+	this.setState(state);
+};
+
+Dot.prototype.setState = function(s) {
+	var me = this, elm = me.elm;
+	this.state = s;
+	var c = s==1?'#f96':s==0?'#69f':'#999';
+	elm.css({background: c});
+};
+Dot.prototype.getRandomNeighbor = function() {
+	var me = this, ns = me.neighbors, ons = me.outNeighbors || [];
+	var len = ns.length + ons.length;
+
+	var idx = Math.floor(Math.random()*len);
+	if(idx<ns.length) {
+		return ns[idx];
+	} else {
+		return ons[idx - ns.length]
+	}
+};
+Dot.prototype.swapState = function(d) {
+	var me = this, s1=me.state, s2 = d.state;
+	me.setState(s2);
+	d.setState(s1);
+}
+function Box(opt, elm) {
+	var opt = opt || {};
+	var rowNum = this.rowNum = opt.rowNum || 20, 
+		colNum = this.colNum = opt.colNum || 20;
+	var redNum = opt.redNum || 60, blueNum = opt.blueNum || rowNum*colNum - redNum;
+	var elm = this.elm = elm || $('<div>').addClass("box");
+	var panel = this.panel = elm.find('.panel') || $('<div>').addClass("panel");
+	var panelR = this.panelR = panel.find('.redNum');
+
+	var dots = this.dots = [];
+	var dotW = 2*cfg.dotR, dotH = dotW;
+	var boxW = colNum*dotW, boxH = rowNum*dotH;
+	elm.css({
+		width: boxW + 'px',
+		height: boxH + 'px'
+	});
+
+
+	var mask = $('<div>').addClass('mask').on('click', function(){
+		$(this).toggleClass('mask-solid');
+	}).appendTo(elm);
+
+
+	for(var i=0; i< rowNum; i++) {
+		for(var j=0; j<colNum; j++) {
+			var s = redNum>0?(redNum--,1):blueNum>0?(blueNum--,0):-1;
+			var dot = new Dot({
+				radius: cfg.dotR,
+				state: s 
+			}); 
+			dots.push(dot);			
+		}
+	}
+	dots.sort(function(){return Math.random() - 0.5});
+	for(var idx=0, l=dots.length; idx<l; idx++) {
+		var dot = dots[idx];
+		dot.neighbors = this.getNeigborDots(idx);
+		elm.append(dot.elm);
+	}
+
+	this.evolve();
+}
+
+Box.prototype.evolve = function() {
+	var me = this, colNum = me.colNum, rowNum = me.rowNum, c = colNum*rowNum,
+	panelR = test =  me.panelR, dots = me.dots;
+	tick();
+	function tick() {
+		for(var i = 0; i<c; i++) {
+			var dot1 = me.getRandomDot();
+			var dot2 = dot1.getRandomNeighbor();
+			dot1.swapState(dot2);
+		}
+		var redNum = 0;
+		for(var i=0, l=dots.length; i<l; i++) {
+			if(dots[i].state == 1) {redNum++}
+		}
+		panelR.html(redNum);
+		setTimeout(tick,cfg.time);
+	}
+}
+
+Box.prototype.getNeigborDots = function(idx) {
+	var me = this, colNum = me.colNum, rowNum = me.rowNum, dots = me.dots;
+	var i = Math.floor(idx/colNum), j = idx % colNum;
+	var ns = [];
+	if(i>0) {
+		ns.push(dots[(i-1)*colNum + j]);
+	}
+	if(i<rowNum - 1) {
+		ns.push(dots[(i+1)*colNum + j]);
+	}
+	if(j>0) {
+		ns.push(dots[i*colNum + j - 1])
+	}
+	if(j<colNum - 1) {
+		ns.push(dots[i*colNum + j + 1]);
+	}
+	return ns;
+}
+Box.prototype.getRandomDot = function(){
+	var me = this, dots = me.dots, len = dots.length;
+	var idx = Math.floor(Math.random()*len);
+	return dots[idx];
+}
+Box.prototype.rightContactTo = function(box) {
+	var me = this, rowNum = this.rowNum, colNum = this.colNum, dots = me.dots;
+	for(var i = 0; i<rowNum; i++) {
+		var dot = dots[i*colNum + rowNum - 1];
+		var n = box.dots[i*box.colNum];
+		dot.outNeighbors = [n];
+		n.outNeighbors = [dot];
+	}
+}
+Box.prototype.rightIsolateFrom = function(box) {
+	var me = this, rowNum = this.rowNum, colNum = this.colNum, dots = me.dots;
+	for(var i = 0; i<rowNum; i++) {
+		var dot = dots[i*colNum + rowNum - 1];
+		var n = box.dots[i*box.colNum];
+		dot.outNeighbors = null;
+		n.outNeighbors = null;
+	}
+}
+
+var checkbox = $("[name='my-checkbox']").bootstrapSwitch({
+	size:'normal',
+	onText: '快',
+	offText: '慢',
+	onSwitchChange: function(event, state){
+		if(state == false) {
+			cfg.time = 1000;
+		} else {
+			cfg.time = 0;
+		}
+	}
+});
+
+var boxA = new Box({}, $('.boxA'));
+var boxB = new Box({redNum: 140}, $('.boxB'));
+
+
+
+elm.btnContact.on('click', function(){
+	bd.toggleClass('contact');
+	if(bd.hasClass("contact")) {
+		boxA.rightContactTo(boxB);
+	} else {
+		boxA.rightIsolateFrom(boxB);
+	}
+});
+
+
+	</script>
+</body>
+</html>
